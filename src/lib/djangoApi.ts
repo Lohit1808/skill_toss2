@@ -217,12 +217,34 @@ export async function forgotPassword(email: string) {
   });
 }
 
+
 export async function completePassword(
-  kind: 'set' | 'reset', uid: string, token: string, newPassword: string, confirmPassword: string,
+  kind: 'set' | 'reset',
+  uid: string,
+  token: string,
+  newPassword: string,
+  confirmPassword: string,
 ) {
-  return apiRequest<{ detail: string }>(`/api/auth/${kind}-password/`, {
+  if (kind === 'set') {
+    return apiRequest<{ detail: string }>('/api/auth/set-password/', {
+      method: 'POST',
+      body: {
+        token,
+        password: newPassword,
+      },
+      authenticated: false,
+    });
+  }
+
+  // Preserve the existing reset-password API contract.
+  return apiRequest<{ detail: string }>('/api/auth/reset-password/', {
     method: 'POST',
-    body: { uid, token, new_password: newPassword, confirm_password: confirmPassword },
+    body: {
+      uid,
+      token,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    },
     authenticated: false,
   });
 }
@@ -294,6 +316,13 @@ export async function setManagedUserActive(id: string, active: boolean) {
   ));
 }
 
+
+export async function deleteManagedUser(id: string): Promise<void> {
+  await apiRequest<void>(`/api/users/${id}/`, {
+    method: 'DELETE',
+  });
+}
+
 export async function resendManagedUserInvite(id: string) {
   return apiRequest<{ detail: string }>(`/api/users/${id}/resend-invite/`, { method: 'POST', body: {} });
 }
@@ -302,12 +331,17 @@ export type ProvisioningBatch = { id: string; name: string; course: string; stat
 export type ProvisioningSubject = { id: string; code: string; title: string; course: string; is_active: boolean };
 
 export async function getProvisioningCatalog() {
-  const [batches, subjects] = await Promise.all([
+  const [batchesResult, subjectsResult] = await Promise.allSettled([
     apiRequest<ProvisioningBatch[]>('/api/batches/'),
     apiRequest<ProvisioningSubject[]>('/api/subjects/'),
   ]);
+
   return {
-    batches: batches.filter((batch) => batch.status === 'active'),
-    subjects: subjects.filter((subject) => subject.is_active),
+    batches: batchesResult.status === 'fulfilled'
+      ? batchesResult.value.filter((batch) => batch.status === 'active')
+      : [],
+    subjects: subjectsResult.status === 'fulfilled'
+      ? subjectsResult.value.filter((subject) => subject.is_active)
+      : [],
   };
 }

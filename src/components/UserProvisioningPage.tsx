@@ -5,6 +5,7 @@ import { Badge, StatusBadge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Tabs';
 import { Modal } from '@/components/ui/Modal';
 import { useAuth } from '@/lib/authContext';
+import { deleteManagedUser } from '@/lib/djangoApi';
 import {
   getProvisioningCatalog,
   getApiFieldErrors,
@@ -159,6 +160,36 @@ export function UserProvisioningPage() {
     }
   };
 
+
+  async function deleteUser(user: ManagedUser) {
+    const confirmed = window.confirm(
+      `Permanently delete ${user.fullName} (${user.email})? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setStatusTarget(user.id);
+    setError('');
+    setSuccess('');
+
+    try {
+      await deleteManagedUser(user.id);
+      setUsers((current) =>
+        current.filter((item) => item.id !== user.id)
+      );
+      setSuccess(`${user.email} was deleted successfully.`);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'The user could not be deleted.'
+      );
+    } finally {
+      setStatusTarget(null);
+    }
+  }
+
+
   const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editing || savingEdit) return;
@@ -211,22 +242,191 @@ export function UserProvisioningPage() {
     </div>
 
     <Card className="mt-5 overflow-hidden">
-      <CardHeader title="Managed accounts" subtitle="Only users inside your server-authorized scope are returned" />
-      {loading ? <div className="flex items-center gap-2 p-6 text-sm text-ink-600"><Loader2 className="h-4 w-4 animate-spin" /> Loading accounts…</div> : users.length === 0 ? <p className="p-6 text-sm text-ink-500">No manageable accounts were returned.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-y border-ink-200 bg-ink-50 text-xs uppercase tracking-wide text-ink-500"><tr><th className="px-5 py-3">User</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-ink-100">{users.map((managedUser) => {
-        const detail = statusDetails[managedUser.status];
-        const busy = statusTarget === managedUser.id;
-        return <tr key={managedUser.id}><td className="px-5 py-4"><p className="font-medium text-ink-900">{managedUser.fullName}</p><p className="text-xs text-ink-500">{managedUser.email}</p></td><td className="px-5 py-4"><Badge variant="primary"><span className="capitalize">{managedUser.role.replace('_', ' ')}</span></Badge></td><td className="px-5 py-4"><StatusBadge status={detail.badge} /><p className="mt-1 text-xs font-medium text-ink-700">{detail.label}</p><p className="mt-0.5 text-xs text-ink-500">{detail.description}</p></td><td className="px-5 py-4"><div className="flex justify-end gap-2">{managedUser.status !== 'disabled' && <button type="button" onClick={() => setEditing(managedUser)} disabled={busy} className="btn-secondary text-sm">Edit</button>}{managedUser.status === 'pending_setup' && <button type="button" disabled={busy} onClick={() => void resendInvite(managedUser)} className="btn-secondary text-sm">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend Invite'}</button>}{managedUser.status === 'active' && <button type="button" disabled={busy} onClick={() => void toggleStatus(managedUser)} className="btn-secondary text-sm text-error-700">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Disable'}</button>}{managedUser.status === 'disabled' && <button type="button" disabled={busy} onClick={() => void toggleStatus(managedUser)} className="btn-secondary text-sm">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reactivate'}</button>}</div></td></tr>;
-      })}</tbody></table></div>}
+      <CardHeader
+        title="Managed accounts"
+        subtitle="Only users inside your server-authorized scope are returned"
+      />
+      {loading ? (
+        <div className="flex items-center gap-2 p-6 text-sm text-ink-600">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading accounts…
+        </div>
+      ) : users.length === 0 ? (
+        <p className="p-6 text-sm text-ink-500">
+          No manageable accounts were returned.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-y border-ink-200 bg-ink-50 text-xs uppercase tracking-wide text-ink-500">
+              <tr>
+                <th className="px-5 py-3">User</th>
+                <th className="px-5 py-3">Role</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {users.map((managedUser) => {
+                const detail = statusDetails[managedUser.status];
+                const busy = statusTarget === managedUser.id;
+
+                return (
+                  <tr key={managedUser.id}>
+                    <td className="px-5 py-4">
+                      <p className="font-medium text-ink-900">{managedUser.fullName}</p>
+                      <p className="text-xs text-ink-500">{managedUser.email}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <Badge variant="primary">
+                        <span className="capitalize">
+                          {managedUser.role.replace('_', ' ')}
+                        </span>
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={detail.badge} />
+                      <p className="mt-1 text-xs font-medium text-ink-700">{detail.label}</p>
+                      <p className="mt-0.5 text-xs text-ink-500">{detail.description}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        {managedUser.status !== 'disabled' && (
+                          <button
+                            type="button"
+                            onClick={() => setEditing(managedUser)}
+                            disabled={busy}
+                            className="btn-secondary text-sm"
+                          >
+                            Edit
+                          </button>
+                        )}
+
+                        {managedUser.status === 'pending_setup' && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void resendInvite(managedUser)}
+                            className="btn-secondary text-sm"
+                          >
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend Invite'}
+                          </button>
+                        )}
+
+                        {managedUser.status === 'active' && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void toggleStatus(managedUser)}
+                            className="btn-secondary text-sm text-error-700"
+                          >
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Disable'}
+                          </button>
+                        )}
+
+                        {managedUser.status === 'disabled' && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void toggleStatus(managedUser)}
+                            className="btn-secondary text-sm"
+                          >
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reactivate'}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void deleteUser(managedUser)}
+                          className="btn-secondary text-sm text-error-700"
+                        >
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
 
-    <Modal open={Boolean(editing)} onClose={() => { if (!savingEdit) setEditing(null); }} title="Edit managed user" size="sm">
-      {editing && <form onSubmit={saveEdit} className="space-y-4">
-        <div><label className="label" htmlFor="edit-user-name">Full name</label><input id="edit-user-name" name="fullName" className="input" required defaultValue={editing.fullName} disabled={savingEdit} /></div>
-        <div><label className="label" htmlFor="edit-user-email">Email</label><input id="edit-user-email" name="email" type="email" className="input" required defaultValue={editing.email} disabled={savingEdit} /></div>
-        <div><label className="label" htmlFor="edit-user-role">Role</label><select id="edit-user-role" name="role" className="input" defaultValue={editing.role} disabled={savingEdit}>{roleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
-        <p className="text-xs leading-5 text-ink-500">Institution and account status cannot be changed through this form. The backend validates every role change.</p>
-        <div className="flex justify-end gap-3"><button type="button" onClick={() => setEditing(null)} disabled={savingEdit} className="btn-secondary">Cancel</button><button type="submit" disabled={savingEdit} className="btn-primary">{savingEdit ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : 'Save changes'}</button></div>
-      </form>}
+    <Modal
+      open={Boolean(editing)}
+      onClose={() => {
+        if (!savingEdit) setEditing(null);
+      }}
+      title="Edit managed user"
+      size="sm"
+    >
+      {editing && (
+        <form onSubmit={saveEdit} className="space-y-4">
+          <div>
+            <label className="label" htmlFor="edit-user-name">Full name</label>
+            <input
+              id="edit-user-name"
+              name="fullName"
+              className="input"
+              required
+              defaultValue={editing.fullName}
+              disabled={savingEdit}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="edit-user-email">Email</label>
+            <input
+              id="edit-user-email"
+              name="email"
+              type="email"
+              className="input"
+              required
+              defaultValue={editing.email}
+              disabled={savingEdit}
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="edit-user-role">Role</label>
+            <select
+              id="edit-user-role"
+              name="role"
+              className="input"
+              defaultValue={editing.role}
+              disabled={savingEdit}
+            >
+              {roleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs leading-5 text-ink-500">
+            Institution and account status cannot be changed through this form.
+            The backend validates every role change.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setEditing(null)}
+              disabled={savingEdit}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button type="submit" disabled={savingEdit} className="btn-primary">
+              {savingEdit ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+                </>
+              ) : (
+                'Save changes'
+              )}
+            </button>
+          </div>
+        </form>
+      )}
     </Modal>
   </div>;
 }

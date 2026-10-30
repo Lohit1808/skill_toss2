@@ -12,7 +12,7 @@ export function PasswordLinkPage({ kind }: { kind: 'set' | 'reset' }) {
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const validLinkShape = Boolean(uid && token);
+  const validLinkShape = Boolean(token && (kind === 'set' || uid));
   const title = kind === 'set' ? 'Set up your password' : 'Reset your password';
 
   const submit = async (event: FormEvent) => {
