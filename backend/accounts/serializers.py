@@ -1,7 +1,13 @@
 
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from .models import User, Batch, Subject
+from .models import (
+    User, 
+    Batch, 
+    Subject,
+    Institution,
+    Branch,
+)    
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -163,4 +169,73 @@ class BatchSerializer(serializers.ModelSerializer):
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subject
-        fields = ["id", "code", "title", "course", "is_active"]        
+        fields = ["id", "code", "title", "course", "is_active"]
+        
+
+class InstitutionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Institution
+        fields = [
+            "id",
+            "name",
+            "code",
+            "email",
+            "phone",
+            "address",
+            "city",
+            "state",
+            "country",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class BranchSerializer(serializers.ModelSerializer):
+    institution_name = serializers.CharField(
+        source="institution.name",
+        read_only=True,
+        default=None,
+    )
+    admin_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Branch
+        fields = [
+            "id",
+            "institution",
+            "institution_name",
+            "name",
+            "code",
+            "email",
+            "phone",
+            "address",
+            "city",
+            "state",
+            "country",
+            "admin",
+            "admin_name",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "institution_name",
+            "admin_name",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_admin_name(self, obj):
+        if obj.admin:
+            return obj.admin.get_full_name() or obj.admin.username
+        return None
+
+    def validate_admin(self, value):
+        if value is not None and value.role != User.Role.ADMIN:
+            raise serializers.ValidationError(
+                "The assigned user must have the Admin role."
+            )
+        return value

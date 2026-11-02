@@ -10,39 +10,33 @@ from .views import (
     UserDisableView,
     UserReactivateView,
     UserResendInviteView,
+    InstitutionListCreateView,
+    InstitutionDetailView,
+    BranchListCreateView,
+    BranchDetailView,
 )
 
+from rest_framework_simplejwt.views import TokenRefreshView
+
 urlpatterns = [
+    # Authentication
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/me/", MeView.as_view(), name="me"),
-    path(
-        "auth/token/refresh/",
-        __import__(
-            "rest_framework_simplejwt.views",
-            fromlist=["TokenRefreshView"],
-        ).TokenRefreshView.as_view(),
-        name="token_refresh",
-    ),
-    path(
-        "auth/super-admin-check/",
-        SuperAdminCheckView.as_view(),
-        name="super_admin_check",
-    ),
+    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/super-admin-check/", SuperAdminCheckView.as_view(), name="super_admin_check"),
+
+    # User Management
     path("users/", UserListCreateView.as_view(), name="user_list_create"),
     path("users/<int:user_id>/", UserDetailView.as_view(), name="user_detail"),
-    path(
-        "users/<int:user_id>/disable/",
-        UserDisableView.as_view(),
-        name="user_disable",
-    ),
-    path(
-        "users/<int:user_id>/reactivate/",
-        UserReactivateView.as_view(),
-        name="user_reactivate",
-    ),
-    path(
-        "users/<int:user_id>/resend-invite/",
-        UserResendInviteView.as_view(),
-        name="user_resend_invite",
-    ),
+    path("users/<int:user_id>/disable/", UserDisableView.as_view(), name="user_disable"),
+    path("users/<int:user_id>/reactivate/", UserReactivateView.as_view(), name="user_reactivate"),
+    path("users/<int:user_id>/resend-invite/", UserResendInviteView.as_view(), name="user_resend_invite"),
+
+    # Institution Management
+    path("institutions/", InstitutionListCreateView.as_view(), name="institution_list_create"),
+    path("institutions/<int:institution_id>/", InstitutionDetailView.as_view(), name="institution_detail"),
+
+    # Branch Management
+    path("branches/", BranchListCreateView.as_view(), name="branch_list_create"),
+    path("branches/<int:branch_id>/", BranchDetailView.as_view(), name="branch_detail"),
 ]

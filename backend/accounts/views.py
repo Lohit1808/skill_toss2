@@ -18,7 +18,7 @@ from .permissions import IsSuperAdmin
 from .models import User
 from .models import PasswordSetupInvitation
 
-from .models import Batch, Subject
+from .models import Batch, Subject, Institution, Branch
 from .permissions import IsSuperAdmin
 from .serializers import (
     LoginSerializer,
@@ -28,6 +28,8 @@ from .serializers import (
     ManagedUserUpdateSerializer,
     BatchSerializer,
     SubjectSerializer,
+    InstitutionSerializer,
+    BranchSerializer,
 )
 
 
@@ -385,3 +387,93 @@ class PasswordSetupView(APIView):
             status=status.HTTP_200_OK,
         )
 
+
+class InstitutionListCreateView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        institutions = Institution.objects.all().order_by("name")
+        serializer = InstitutionSerializer(institutions, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = InstitutionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class InstitutionDetailView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request, institution_id):
+        institution = get_object_or_404(Institution, pk=institution_id)
+        return Response(InstitutionSerializer(institution).data)
+
+    def patch(self, request, institution_id):
+        institution = get_object_or_404(Institution, pk=institution_id)
+        serializer = InstitutionSerializer(
+            institution, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, institution_id):
+        institution = get_object_or_404(Institution, pk=institution_id)
+
+        if institution.branches.exists():
+            return Response(
+                {"detail": "This institution has branches. Reassign or remove its branches first."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        institution.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BranchListCreateView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        branches = Branch.objects.select_related(
+            "institution", "admin"
+        ).order_by("name")
+
+        institution_id = request.query_params.get("institution")
+        if institution_id:
+            branches = branches.filter(institution_id=institution_id)
+
+        serializer = BranchSerializer(branches, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = BranchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class BranchDetailView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request, branch_id):
+        branch = get_object_or_404(
+            Branch.objects.select_related("institution", "admin"),
+            pk=branch_id,
+        )
+        return Response(BranchSerializer(branch).data)
+
+    def patch(self, request, branch_id):
+        branch = get_object_or_404(Branch, pk=branch_id)
+        serializer = BranchSerializer(
+            branch, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, branch_id):
+        branch = get_object_or_404(Branch, pk=branch_id)
+        branch.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
